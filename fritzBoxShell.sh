@@ -419,7 +419,7 @@ get_ip_from_mac() {
 
         # Use curl to send the SOAP request (replace this with your actual method)
         local response=$(soap_request "/upnp/control/hosts" "urn:dslforum-org:service:Hosts:1" "GetSpecificHostEntry" "$SOAP_BODY")
-        local ip=$(echo "$response" | xmlstarlet sel -t -v "//NewIPAddress" 2>/dev/null)
+        local ip=$(echo "$response" | python xmlstarlet sel -t -v "//NewIPAddress" 2>/dev/null)
 
         echo "$ip"
     else
@@ -441,7 +441,7 @@ get_filtered_clients() {
     </s:Envelope>'
 
     local mesh_list_xml=$(soap_request "/upnp/control/hosts" "urn:dslforum-org:service:Hosts:1" "X_AVM-DE_GetMeshListPath" "$SOAP_BODY")
-    local mesh_list_path=$(echo "$mesh_list_xml" | xmlstarlet sel -t -v "//NewX_AVM-DE_MeshListPath")
+    local mesh_list_path=$(echo "$mesh_list_xml" | python xmlstarlet sel -t -v "//NewX_AVM-DE_MeshListPath")
 
     if [[ -z "$mesh_list_path" ]]; then
         echo "Error: Could not retrieve mesh list."
@@ -626,7 +626,7 @@ get_filtered_clients() {
     (
         echo -e "$header"
         echo "$unique_clients" | jq -r '.[] | "\(.type)\t\(.name)\t\(.ip // "No IP")\t\(.mac)\t\(.status)"'
-    ) | column -t -s $'\t'
+    ) | awk -F'\t' '{ printf "%-10s %-20s %-15s %-20s %-10s\n", $1, $2, $3, $4, $5 }'
 }
 
 ### ----------------------------------------------------------------------------------------------------- ###
@@ -847,7 +847,7 @@ ListAllDevicesUltraFast() {
         -H "SoapAction:urn:dslforum-org:service:Hosts:1#X_AVM-DE_GetMeshListPath" \
         -d "$SOAP_BODY" 2>/dev/null)
     
-    mesh_list_path=$(echo "$mesh_list_xml" | xmlstarlet sel -t -v "//NewX_AVM-DE_MeshListPath" 2>/dev/null)
+    mesh_list_path=$(echo "$mesh_list_xml" | python xmlstarlet sel -t -v "//NewX_AVM-DE_MeshListPath" 2>/dev/null)
 
     if [[ -z "$mesh_list_path" ]]; then
         return 1  # Mesh API not available
@@ -1420,7 +1420,7 @@ verify_action_availability() {
         echo "$desc_xml" > "$temp_file"
 
         # Find the SCPD URL
-        scpd_url=$(xmlstarlet sel -t -m "//*[local-name()='service']" \
+        scpd_url=$(python xmlstarlet sel -t -m "//*[local-name()='service']" \
             -if "./*[local-name()='controlURL'][text()='$location']" \
             -v "./*[local-name()='SCPDURL']" -n "$temp_file" | head -n 1)
 
@@ -1449,7 +1449,7 @@ verify_action_availability() {
     echo "$scpd_data" > "$scpd_file"
 
     # Check if the action is available
-    available_action=$(xmlstarlet sel -t -m "//*[local-name()='action']" \
+    available_action=$(python xmlstarlet sel -t -m "//*[local-name()='action']" \
         -if "./*[local-name()='name'][text()='$action']" \
         -v "./*[local-name()='name']" -n "$scpd_file" | head -n 1)
 
@@ -1775,7 +1775,7 @@ TR064_actions() {
             echo "$xml_data" > "$temp_file"
 
             # Use XMLStarlet to extract the service data
-            services=$(xmlstarlet sel -t -m "//*[local-name()='service']" \
+            services=$(python xmlstarlet sel -t -m "//*[local-name()='service']" \
                 -v "concat(./*[local-name()='SCPDURL'], ' | ', ./*[local-name()='serviceType'], ' | ', ./*[local-name()='controlURL'])" -n "$temp_file")
 
             rm "$temp_file"
@@ -1883,7 +1883,7 @@ TR064_actions() {
 
     echo "----------------------------------------------------------"
     echo "Available actions for the service:"
-    actions=$(xmlstarlet sel -t -m "//*[local-name()='action']" -v "concat(./*[local-name()='name'], '')" -n "$scpd_file")
+    actions=$(python xmlstarlet sel -t -m "//*[local-name()='action']" -v "concat(./*[local-name()='name'], '')" -n "$scpd_file")
     echo "$actions" | nl -w 2 -s '. '
 
     echo
@@ -1903,7 +1903,7 @@ TR064_actions() {
     fi
 
 	# Retrieve and display all arguments (both 'in' and 'out' directions)
-    all_arguments=$(xmlstarlet sel -t -m "//*[local-name()='action']/*[local-name()='name' and text()='$selected_action']/../*[local-name()='argumentList']/*[local-name()='argument']" \
+    all_arguments=$(python xmlstarlet sel -t -m "//*[local-name()='action']/*[local-name()='name' and text()='$selected_action']/../*[local-name()='argumentList']/*[local-name()='argument']" \
         -v "concat(./*[local-name()='name'], ' (', ./*[local-name()='direction'], ')')" -n "$scpd_file")
 
     echo
@@ -1911,7 +1911,7 @@ TR064_actions() {
     echo "$all_arguments"
 
     # Retrieve arguments with Direction=in
-    in_arguments=$(xmlstarlet sel -t -m "//*[local-name()='action']/*[local-name()='name' and text()='$selected_action']/../*[local-name()='argumentList']/*[local-name()='argument']" \
+    in_arguments=$(python xmlstarlet sel -t -m "//*[local-name()='action']/*[local-name()='name' and text()='$selected_action']/../*[local-name()='argumentList']/*[local-name()='argument']" \
         -v "concat(./*[local-name()='name'], ' (', ./*[local-name()='direction'], ')')" -n "$scpd_file" | grep "(in)")
 
     # Verwende normale Arrays statt assoziativen Arrays
@@ -1921,7 +1921,7 @@ TR064_actions() {
         echo "The action requires input values for the following arguments:"
 
         # Extract only the names of arguments with direction 'in'
-        in_argument_names=$(xmlstarlet sel -t \
+        in_argument_names=$(python xmlstarlet sel -t \
             -m "//*[local-name()='action']/*[local-name()='name' and text()='$selected_action']/../*[local-name()='argumentList']/*[local-name()='argument'][./*[local-name()='direction']='in']" \
             -v "./*[local-name()='name']" -n "$scpd_file")
 

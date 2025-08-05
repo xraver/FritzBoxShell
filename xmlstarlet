@@ -1,0 +1,47 @@
+import sys
+from lxml import etree
+import argparse
+
+def stampa_blocco_condizionato(xml_file, blocchi_xpath=None, filtro_xpath=None, campo_xpath=None):
+    tree = etree.parse(xml_file)
+    if blocchi_xpath:
+        blocchi = tree.xpath(blocchi_xpath)
+    else:
+        blocchi = [tree.getroot()]
+
+    for i, blocco in enumerate(blocchi, start=1):
+        # Verifica condizione XPath
+        if filtro_xpath:
+            if not blocco.xpath(filtro_xpath):
+                continue
+
+        # Stampa campo singolo o tutto il blocco
+        if campo_xpath:
+            elementi = blocco.xpath(campo_xpath)
+            if elementi:
+                for el in elementi:
+                    print(el.text)
+            else:
+                print("(campo non trovato)")
+        else:
+            print(f"\nBlocco {i}:")
+            for elemento in blocco.iterchildren():
+                tag_pulito = etree.QName(elemento).localname
+                print(f"  {tag_pulito}: {elemento.text}")
+            print("-" * 40)
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Estrazione blocchi XML")
+    parser.add_argument("sel", nargs="?", help="Select data or query XML document(s) (XPATH, etc)")
+    parser.add_argument("-t", nargs="?", help="text output")
+    parser.add_argument("-n", "--nomefile", help="Percorso del file XML")
+    parser.add_argument("-m", "--blocco", help="Nome del blocco da stampare")
+    parser.add_argument("-if", "--condizione", help="Espressione XPath da applicare a ciascun blocco")
+    parser.add_argument("-v", "--campo", help="Espressione XPath per estrarre il campo (es. \"./*[local-name()='controlURL']\")")
+
+    args = parser.parse_args()
+
+    if args.nomefile:
+        stampa_blocco_condizionato(args.nomefile, args.blocco, args.condizione, args.campo)
+    else:
+        stampa_blocco_condizionato(sys.stdin, args.blocco, args.condizione, args.campo)
